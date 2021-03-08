@@ -25,27 +25,33 @@ def evaluateMatchingMethods():
     [basicHashEdgeScore, basicHashComponentScore] = _evaluateBasicHash(
         testMatcher, testMatchesDF)
 
-    print("Evaluated CorpHash and BasicHash.")
-    print(f'Edge CorpHash: {corpHashEdgeScore}')
-    print(f'Component CorpHash: {corpHashCompScore}')
-    print(f'Edge BasicHash: {basicHashEdgeScore}')
-    print(f'Component BasicHash: {basicHashComponentScore}')
+    print("| Evaluated CorpHash and BasicHash")
+    print("----------------------------------")
+    print(f'Edge CorpHash Score: {corpHashEdgeScore}')
+    print(f'Component CorpHash Score: {corpHashCompScore}')
+    print(f'Edge BasicHash Score: {basicHashEdgeScore}')
+    print(f'Component BasicHash Score: {basicHashComponentScore}\n')
 
     [trainMatcher, trainMatchesDF] = _createTrainMatcher()
 
     matchersAndDF = {
-        'trainMatcher': trainMatcher,
         'testMatcher': testMatcher,
         'testMatchesDF': testMatchesDF,
-        'trainMatchesDF': trainMatchesDF,
     }
 
-    _saveLSIPlot(compare.edge_compare, 'lsi_edge.png', matchersAndDF)
-    _saveLSIPlot(compare.component_compare, 'lsi_component.png', matchersAndDF)
-    _saveLSIPlot(compare.edge_compare,
-                 'lsi_with_corp_edge.png', matchersAndDF, True)
+    trainingStartTime = time.time()
+    lsi = LSIModel(trainMatcher)
+    print("| Completed LSI Training")
+    print("--------------------------")
+    print(f'LSI training time was {time.time() - trainingStartTime} seconds\n')
+
+    _saveLSIPlot(compare.edge_compare, 'lsi_edge.png', matchersAndDF, lsi)
     _saveLSIPlot(compare.component_compare,
-                 'lsi_with_corp_component.png', matchersAndDF, True)
+                 'lsi_component.png', matchersAndDF, lsi)
+    _saveLSIPlot(compare.edge_compare,
+                 'lsi_with_corp_edge.png', matchersAndDF, lsi, True)
+    _saveLSIPlot(compare.component_compare,
+                 'lsi_with_corp_component.png', matchersAndDF, lsi, True)
 
 
 def _evaluateCorpHash(testMatcher, testMatchesDF):
@@ -66,14 +72,9 @@ def _evaluateBasicHash(testMatcher, testMatchesDF):
     return [edgeScore, compScore]
 
 
-def _saveLSIPlot(scoreFunc, savePath, matchersAndDF, addCorpHash=False):
-    startTime = time.time()
-    trainMatcher = matchersAndDF['trainMatcher']
+def _saveLSIPlot(scoreFunc, savePath, matchersAndDF, lsi, addCorpHash=False):
     testMatcher = matchersAndDF['testMatcher']
-    trainMatchesDF = matchersAndDF['trainMatchesDF']
     testMatchesDF = matchersAndDF['testMatchesDF']
-
-    lsi = LSIModel(trainMatcher)
 
     predictStartTime = time.time()
     predictedMatcher = _createPredictedMatcher(testMatchesDF)
@@ -81,28 +82,31 @@ def _saveLSIPlot(scoreFunc, savePath, matchersAndDF, addCorpHash=False):
         predictedMatcher.matchHash(corpHash)
     suggestedMatches = predictedMatcher.suggestMatches(lsi)
 
+    print(f"| LSI Evaluation for {savePath}")
+    print("---------------------------------------")
     print(
         f'Matches for {savePath} predicted in {time.time() - predictStartTime} seconds.')
 
+    iterationStartTime = time.time()
     for minScore in np.arange(0.01, 1.01, 0.01):
         matchesOverMinScore = suggestedMatches[suggestedMatches['score'] >= minScore]
         thisPredictedMatcher = _createPredictedMatcher(testMatchesDF)
         thisPredictedMatcher.addMatchDF(matchesOverMinScore)
-
         compareScore = scoreFunc(testMatcher, predictedMatcher)
         plt.plot(minScore, compareScore, marker='o', markersize=3, color="red")
+
     plt.xlabel('Min Score')
     plt.ylabel('Compare Score')
     plt.show()
     plt.savefig(savePath)
     print(
-        f"Plot saved to {savePath}. Min score iteration completed in {time.time() - startTime} seconds.")
+        f"Plot saved to {savePath}. Min score iteration completed in {time.time() - iterationStartTime} seconds.\n")
     plt.clf()
 
 
 def _createTestMatcher():
     """Return test matcher as well as dataframe."""
-    testMatchesDF = pd.read_csv(TEST_DATA_PATH, nrows=1000)
+    testMatchesDF = pd.read_csv(TEST_DATA_PATH, nrows=100)
     testMatchesDF[COLUMN_HEADER_3] = 1
 
     testMatcher = _createMatcherFromDF(testMatchesDF)
@@ -112,7 +116,7 @@ def _createTestMatcher():
 
 def _createTrainMatcher():
     """Return training matcher as well as dataframe."""
-    trainMatchesDF = pd.read_csv(TRAIN_DATA_PATH, nrows=1000)
+    trainMatchesDF = pd.read_csv(TRAIN_DATA_PATH, nrows=100)
     trainMatchesDF[COLUMN_HEADER_3] = 1
 
     trainMatcher = _createMatcherFromDF(trainMatchesDF)
@@ -136,4 +140,3 @@ def _createMatcherFromDF(DF):
     matcher.addStrings(DF[COLUMN_HEADER_2])
     matcher.addMatchDF(DF)
     return matcher
-
