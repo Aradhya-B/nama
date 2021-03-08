@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 
 from nama.matcher import Matcher
 from nama.hashes import corpHash
@@ -19,27 +20,30 @@ COLUMN_HEADER_3 = 'score'
 
 def evaluateMatchingMethods():
     [testMatcher, testMatchesDF] = _createTestMatcher()
-    [corpHashEdgeScore, corpHashCompScore] = _evaluateCorpHash(testMatcher, testMatchesDF)
-    [basicHashEdgeScore, basicHashComponentScore] = _evaluateBasicHash(testMatcher, testMatchesDF)
-    
+    [corpHashEdgeScore, corpHashCompScore] = _evaluateCorpHash(
+        testMatcher, testMatchesDF)
+    [basicHashEdgeScore, basicHashComponentScore] = _evaluateBasicHash(
+        testMatcher, testMatchesDF)
+
     print("Evaluated CorpHash and BasicHash.")
     print(f'Edge CorpHash: {corpHashEdgeScore}')
     print(f'Component CorpHash: {corpHashCompScore}')
     print(f'Edge BasicHash: {basicHashEdgeScore}')
     print(f'Component BasicHash: {basicHashComponentScore}')
-    
+
     [trainMatcher, trainMatchesDF] = _createTrainMatcher()
-    
+
     matchersAndDF = {
         'trainMatcher': trainMatcher,
         'testMatcher': testMatcher,
-        'testMatchesDF': testMatchesDF, 
+        'testMatchesDF': testMatchesDF,
         'trainMatchesDF': trainMatchesDF,
     }
 
     _saveLSIPlot(compare.edge_compare, 'lsi_edge.png', matchersAndDF)
     _saveLSIPlot(compare.component_compare, 'lsi_component.png', matchersAndDF)
-    _saveLSIPlot(compare.edge_compare, 'lsi_with_corp_edge.png', matchersAndDF, True)
+    _saveLSIPlot(compare.edge_compare,
+                 'lsi_with_corp_edge.png', matchersAndDF, True)
     _saveLSIPlot(compare.component_compare,
                  'lsi_with_corp_component.png', matchersAndDF, True)
 
@@ -56,30 +60,31 @@ def _evaluateCorpHash(testMatcher, testMatchesDF):
 def _evaluateBasicHash(testMatcher, testMatchesDF):
     predictedMatcher = _createPredictedMatcher(testMatchesDF)
     predictedMatcher.matchHash(basicHash)
-    
+
     edgeScore = compare.edge_compare(testMatcher, predictedMatcher)
     compScore = compare.component_compare(testMatcher, predictedMatcher)
     return [edgeScore, compScore]
 
 
 def _saveLSIPlot(scoreFunc, savePath, matchersAndDF, addCorpHash=False):
+    startTime = time.time()
     trainMatcher = matchersAndDF['trainMatcher']
     testMatcher = matchersAndDF['testMatcher']
     trainMatchesDF = matchersAndDF['trainMatchesDF']
     testMatchesDF = matchersAndDF['testMatchesDF']
 
     lsi = LSIModel(trainMatcher)
-    
+
+    predictStartTime = time.time()
     predictedMatcher = _createPredictedMatcher(testMatchesDF)
     if addCorpHash:
         predictedMatcher.matchHash(corpHash)
     suggestedMatches = predictedMatcher.suggestMatches(lsi)
-    # TODO Determine where to create predicted matcher in this loop
-    # Option 1
+
+    print(
+        f'Matches for {savePath} predicted in {time.time() - predictStartTime} seconds.')
+
     for minScore in np.arange(0.01, 1.01, 0.01):
-        # Option 2
-        # predictedMatcher = _createPredictedMatcher(testMatchesDF)
-        # Only need to create the match DF one time
         matchesOverMinScore = suggestedMatches[suggestedMatches['score'] >= minScore]
         thisPredictedMatcher = _createPredictedMatcher(testMatchesDF)
         thisPredictedMatcher.addMatchDF(matchesOverMinScore)
@@ -90,7 +95,8 @@ def _saveLSIPlot(scoreFunc, savePath, matchersAndDF, addCorpHash=False):
     plt.ylabel('Compare Score')
     plt.show()
     plt.savefig(savePath)
-    print(f"Plot saved to {savePath}.")
+    print(
+        f"Plot saved to {savePath}. Min score iteration completed in {time.time() - startTime} seconds.")
     plt.clf()
 
 
@@ -102,6 +108,7 @@ def _createTestMatcher():
     testMatcher = _createMatcherFromDF(testMatchesDF)
 
     return [testMatcher, testMatchesDF]
+
 
 def _createTrainMatcher():
     """Return training matcher as well as dataframe."""
@@ -129,3 +136,4 @@ def _createMatcherFromDF(DF):
     matcher.addStrings(DF[COLUMN_HEADER_2])
     matcher.addMatchDF(DF)
     return matcher
+
