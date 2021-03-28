@@ -1,4 +1,4 @@
-
+from collections import Counter
 
 def compare_positives(predicted_matcher,gold_matcher,use_counts=True):
     """
@@ -20,7 +20,7 @@ def compare_positives(predicted_matcher,gold_matcher,use_counts=True):
                     gold_group_counts[gold_label] += 1
 
         total_counted = sum(gold_group_counts.values())
-        for g,count in gold_c_counts.items():
+        for g,count in gold_group_counts.items():
             """
             All pairs of strings that are in the predicted group, and
             gold_matcher group g are True Positives.
@@ -41,7 +41,7 @@ def compare_positives(predicted_matcher,gold_matcher,use_counts=True):
             We multiply this number by 0.5 to correct for the fact that each
             pair will be counted twice (once for each string in the pair).
             """
-            fp += 0.5*count*(total-count)
+            fp += 0.5*count*(total_counted)
 
     return {'TP':tp,'FP':fp}
 
@@ -58,7 +58,9 @@ def confusion_matrix(predicted_matcher,gold_matcher,use_counts=True):
     negatives = compare_positives(gold_matcher,predicted_matcher,use_counts=True)
 
      # The True Positive count returned from each function call always should be identical
-    assert positives['TP'] == negatives['FP']
+    # TODO: determine correctness of this assertion
+    # assert positives['TP'] == negatives['FP']
+    assert positives['TP'] == negatives['TP']
 
     tp = positives['TP']
     fp = positives['FP']
@@ -71,7 +73,7 @@ def confusion_matrix(predicted_matcher,gold_matcher,use_counts=True):
 
     tn = n**2 - tp - fp - fn
 
-    return {'TP':tp,'FP':fp,'TN',tn,'FN',fn}
+    return {'TP':tp,'FP':fp,'TN':tn,'FN':fn}
 
 
 def confusion_matrix_slow(predicted_matcher,gold_matcher,use_counts=True):
@@ -109,7 +111,7 @@ def confusion_matrix_slow(predicted_matcher,gold_matcher,use_counts=True):
                     else:
                         tn += count
 
-    return {'TP':tp,'FP':fp,'TN',tn,'FN',fn}
+    return {'TP':tp,'FP':fp,'TN':tn,'FN':fn}
 
 
 def score_predicted(predicted_matcher,gold_matcher,use_counts=True):
