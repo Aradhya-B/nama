@@ -506,7 +506,7 @@ def _create_test_matches_df_from_test_data_path(
     ch_3=COLUMN_HEADER_3
 ):
     test_matches_df = pd.read_csv(test_data_path, nrows=nrows)
-    test_matches_df[ch_3] = ch_3
+    test_matches_df[ch_3] = 1
     return test_matches_df
 
 

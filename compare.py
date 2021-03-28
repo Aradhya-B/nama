@@ -1,4 +1,5 @@
 import numpy as np
+from collections import Counter
 import math
 import networkx as nx
 from itertools import product
@@ -27,6 +28,98 @@ def component_compare(matcherA, matcherB):
         n_misses += len(c_A & c_B) * len(c_A ^ c_B)
 
     return round(abs(1 - 2*n_misses/(n**2 - n)), 3)
+
+def confusion_matrix_by_component(matcher, gold_matcher):
+    tp, fp = _compare_positives_by_component(matcher, gold_matcher)
+
+    tp_g, fn = _compare_positives_by_component(gold_matcher, matcher)
+
+    assert tp == tp_g
+
+    n = len(matcher.strings())
+    tn = 0.5 * n * (n - 1) - tp - fp - fn
+
+    return {'TP': tp, 'FP': fp, 'FN': fn, 'TN': tn}
+
+def _compare_positives_by_component(matcher, gold_matcher, use_counts=True):
+    """
+
+    Computes the number of within-component string pairs that appear in:
+    - Both the matcher and gold_matcher (True Positives)
+    - The matcher, but not the gold matcher (False Positives)
+    """
+
+    gold_component_map = gold_matcher.componentMap()
+
+    tp = 0
+    fp = 0
+    for c in matcher.components():
+        if use_counts:
+            gold_c_counts = Counter()
+            for i in c:
+                gold_c_counts[gold_component_map.get(i, -1)] += matcher.counts[i]
+        else:
+            gold_c_counts = Counter(gold_component_map.get(i, -1) for i in c)
+
+        for gold_c, count in gold_c_counts.items():
+            if gold_c != -1:
+                # The counted strings are in a gold component
+                """
+                All pairs of strings that are in matcher component c, and
+                gold_matcher component gold_c are True Positives.
+
+                'count' gives the number of strings in this set, so there must be
+                0.5*count*(count-1) unique (unordered) string pairs in this category.
+                """
+
+                tp += 0.5 * count * (count - 1)
+
+                """
+                All pairs of strings that are in matcher component c, with one
+                string in the gold_matcher component gold_c and one string in
+                a different gold_matcher component are False Positives.
+
+                There must be count*(len(c)-count) unique pairs in this category
+
+                We multiply this number by 0.5 to correct for the fact that each
+                pair will be counted twice (once from each "end")
+                """
+
+                fp += 0.5 * count * (len(c) - count)
+
+            else:
+                # The counted strings are not in any gold component
+                """
+                When strings in the matcher are not in any gold matcher
+                component, we treat them as if they are all in separate gold
+                components(i.e., strings that are not in the gold matcher are
+                assumed to not be matched to anything in the gold matcher).
+
+                In this case, the strings pairs that would ordinarily be True
+                Positives are instead False Positives.
+                """
+
+                fp += 0.5 * count * (count - 1)
+                fp += 0.5 * count * (len(c) - count)
+
+    return tp, fp
+
+
+def _naive_confusion_matrix_by_component(matcher, gold_matcher):
+    tp, tn, fp, fn = 0, 0, 0, 0
+    for (matcher_string, gold_string) in product(matcher.strings(), gold_matcher.strings()):
+        if matcher_string in nx.node_connected_component(gold_matcher.matches(), gold_string):
+            if gold_string in nx.node_connected_component(matcher.matches(), matcher_string):
+                tp += 1
+            else:
+                fn += 1
+        else:
+            if gold_string in nx.node_connected_component(matcher.matches(), matcher_string):
+                fp += 1
+            else:
+                tn +=1
+
+    return {'TP': tp, 'FP': fp, 'FN': fn, 'TN': tn}
 
 
 def bp_compare(matcherA, matcherB):
